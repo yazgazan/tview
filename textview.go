@@ -11,6 +11,7 @@ import (
 	"github.com/gdamore/tcell"
 	colorful "github.com/lucasb-eyer/go-colorful"
 	runewidth "github.com/mattn/go-runewidth"
+	"github.com/rivo/uniseg"
 )
 
 var (
@@ -195,7 +196,8 @@ func (t *TextView) NLines() (int, error) {
 }
 
 // SetScrollable sets the flag that decides whether or not the text view is
-// scrollable. If true, text is kept in a buffer and can be navigated.
+// scrollable. If true, text is kept in a buffer and can be navigated. If false,
+// the last line will always be visible.
 func (t *TextView) SetScrollable(scrollable bool) *TextView {
 	t.scrollable = scrollable
 	if !scrollable {
@@ -304,8 +306,9 @@ func (t *TextView) SetRegions(regions bool) *TextView {
 
 // SetChangedFunc sets a handler function which is called when the text of the
 // text view has changed. This is useful when text is written to this io.Writer
-// in a separate goroutine. This does not automatically cause the screen to be
-// refreshed so you may want to use the "changed" handler to redraw the screen.
+// in a separate goroutine. Doing so does not automatically cause the screen to
+// be refreshed so you may want to use the "changed" handler to redraw the
+// screen.
 //
 // Note that to avoid race conditions or deadlocks, there are a few rules you
 // should follow:
@@ -607,6 +610,13 @@ func (t *TextView) reindexBuffer(width int) {
 		if t.wrap && len(str) > 0 {
 			for len(str) > 0 {
 				extract := runewidth.Truncate(str, width, "")
+				if len(extract) == 0 {
+					// We'll extract at least one grapheme cluster.
+					gr := uniseg.NewGraphemes(str)
+					gr.Next()
+					_, to := gr.Positions()
+					extract = str[:to]
+				}
 				if t.wordWrap && len(extract) < len(str) {
 					// Add any spaces from the next line.
 					if spaces := spacePattern.FindStringIndex(str[len(extract):]); spaces != nil && spaces[0] == 0 {
@@ -947,7 +957,7 @@ func (t *TextView) Draw(screen tcell.Screen) {
 	// If this view is not scrollable, we'll purge the buffer of lines that have
 	// scrolled out of view.
 	if !t.scrollable && t.lineOffset > 0 {
-		if t.lineOffset <= len(t.index) {
+		if t.lineOffset >= len(t.index) {
 			t.buffer = nil
 		} else {
 			t.buffer = t.buffer[t.index[t.lineOffset].Line:]
