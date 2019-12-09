@@ -186,6 +186,14 @@ func NewTextView() *TextView {
 	}
 }
 
+func (t *TextView) NLines() (int, error) {
+	if t.index == nil || t.width != t.lastWidth {
+		return 0, fmt.Errorf("text or width changed")
+	}
+
+	return len(t.index), nil
+}
+
 // SetScrollable sets the flag that decides whether or not the text view is
 // scrollable. If true, text is kept in a buffer and can be navigated.
 func (t *TextView) SetScrollable(scrollable bool) *TextView {
